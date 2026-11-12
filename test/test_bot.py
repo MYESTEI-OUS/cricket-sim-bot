@@ -97,6 +97,20 @@ class TelegramBotTests(unittest.TestCase):
                     200,
                 )
                 handle_message.assert_called_once_with(message)
+            with patch.object(
+                self.bot,
+                "handle_message",
+                side_effect=RuntimeError("Telegram API sendMessage failed (HTTP 429)"),
+            ):
+                self.assertEqual(
+                    request(
+                        "/telegram",
+                        method="POST",
+                        secret="expected-secret",
+                        body={"message": message},
+                    ),
+                    200,
+                )
         finally:
             server.server_close()
 
@@ -266,10 +280,38 @@ class TelegramBotTests(unittest.TestCase):
         self.assertEqual(game["innings"]["match"]["balls"], 1)
         self.assertEqual(game["phase"], "bat")
         self.assertIn("Last ball:", self.api_calls[-1][1]["text"])
+        self.assertIn("BALL-BY-BALL COMMENTARY", self.api_calls[-1][1]["text"])
         self.assertEqual(
             self.api_calls[-1][1]["reply_markup"]["inline_keyboard"][0][0]["callback_data"],
             "bat:aggressive",
         )
+
+    def test_vs_bot_xi_selection_survives_telegram_edit_rate_limit(self):
+        chat_id = 12
+        self.bot.handle_message({
+            "chat": {"id": chat_id, "type": "private"},
+            "from": {"id": 1, "first_name": "Solo player"},
+            "text": "/vsbot",
+        })
+
+        calls = []
+
+        def rate_limited_edit(method, parameters=None):
+            calls.append(method)
+            if method == "editMessageText":
+                raise RuntimeError("Telegram API editMessageText failed (HTTP 429)")
+            return True
+
+        self.bot.api = rate_limited_edit
+        self.callback("team:home:india", user_id=1, chat_id=chat_id)
+        game = self.bot.sessions[chat_id]
+        self.assertEqual(game["stage"], "home_xi")
+
+        self.callback("xi:home:0", user_id=1, chat_id=chat_id)
+
+        self.assertEqual(game["lineups"]["home"], [0])
+        self.assertEqual(game["stage"], "home_xi")
+        self.assertNotIn("sendMessage", calls)
 
     def test_vs_bot_batting_turn_automatically_faces_user_selected_bowling(self):
         chat_id = 12
@@ -540,6 +582,8 @@ class TelegramBotTests(unittest.TestCase):
         self.assertIn("Run rate (RR/CRR): 24.00 runs/over", self.api_calls[-1][1]["text"])
         self.assertIn("Batting SR: 400.00", self.api_calls[-1][1]["text"])
         self.assertIn("FOUR!", self.api_calls[-1][1]["text"])
+        self.assertIn("BALL-BY-BALL COMMENTARY", self.api_calls[-1][1]["text"])
+        self.assertIn("finds the boundary", self.api_calls[-1][1]["text"])
         self.assertIn("R(B)", self.api_calls[-1][1]["text"])
 
     def test_wicket_is_counted_once_in_scorecard(self):
