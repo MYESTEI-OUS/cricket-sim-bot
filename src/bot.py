@@ -1,14 +1,17 @@
 """Group multiplayer cricket bot implemented with Python's standard library."""
 
 import html
+import hmac
 import json
 import os
 import random
 import re
+import secrets
 import sqlite3
 import ssl
 import sys
 import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -1160,11 +1163,80 @@ class TelegramBot:
         finally:
             self.persist_sessions()
 
+    def create_webhook_server(self, webhook_secret: str) -> HTTPServer:
+        bot = self
+
+        class WebhookHandler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                if self.path != "/health":
+                    self.send_error(404)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            def do_POST(self) -> None:
+                if self.path != "/telegram":
+                    self.send_error(404)
+                    return
+                provided_secret = self.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+                if not hmac.compare_digest(provided_secret, webhook_secret):
+                    self.send_error(403)
+                    return
+                try:
+                    content_length = int(self.headers.get("Content-Length", ""))
+                except ValueError:
+                    self.send_error(400)
+                    return
+                if content_length <= 0 or content_length > 1_000_000:
+                    self.send_error(413)
+                    return
+                try:
+                    update = json.loads(self.rfile.read(content_length))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    self.send_error(400)
+                    return
+                if not isinstance(update, dict):
+                    self.send_error(400)
+                    return
+                try:
+                    bot.handle_update(update)
+                except (RuntimeError, URLError, KeyError, ValueError) as error:
+                    print(f"Could not handle Telegram webhook update: {error}", file=sys.stderr)
+                    self.send_error(500)
+                    return
+                self.send_response(200)
+                self.end_headers()
+
+        return HTTPServer(("0.0.0.0", int(os.environ.get("PORT", "10000"))), WebhookHandler)
+
+    def run_webhook(self, hostname: str) -> None:
+        webhook_secret = secrets.token_urlsafe(32)
+        server = self.create_webhook_server(webhook_secret)
+        try:
+            self.api(
+                "setWebhook",
+                {
+                    "url": f"https://{hostname}/telegram",
+                    "secret_token": webhook_secret,
+                    "allowed_updates": ["message", "callback_query"],
+                },
+            )
+            print("Cricket Simulator bot is running with Telegram webhooks.", flush=True)
+            server.serve_forever()
+        finally:
+            server.server_close()
+
     def run(self) -> None:
         bot_info = self.api("getMe")
         self.username = bot_info.get("username")
         if not self.username:
             raise RuntimeError("Telegram getMe did not return this bot's username.")
+        hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+        if hostname:
+            self.run_webhook(hostname)
+            return
         try:
             pending = self.api(
                 "getUpdates",
