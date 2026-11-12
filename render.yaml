@@ -1,0 +1,12 @@
+services:
+  - type: worker
+    name: cricket-telegram-bot
+    runtime: python
+    plan: 0.5c-512mb
+    buildCommand: python -m unittest discover -s test -v
+    startCommand: python -m src.bot
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_SSL_VERIFY
+        value: "true"
