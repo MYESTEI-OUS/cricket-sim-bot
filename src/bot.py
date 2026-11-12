@@ -150,6 +150,12 @@ class TelegramBot:
         except RuntimeError as error:
             if "message is not modified" in str(error).casefold():
                 return
+            if "HTTP 429" in str(error):
+                print(
+                    "Could not redraw the match message because Telegram rate-limited edits.",
+                    file=sys.stderr,
+                )
+                return
             print(f"Could not update the match message; posting a fresh one instead: {error}", file=sys.stderr)
             sent = self.reply(game["chat_id"], text, keyboard, parse_mode)
             if isinstance(sent, dict):
@@ -714,6 +720,7 @@ class TelegramBot:
             "bowler_rotation": [],
             "bowler_index": 0,
             "last_wicket": None,
+            "commentary": [],
         }
 
     def start_innings(self, game: dict) -> None:
@@ -868,10 +875,15 @@ class TelegramBot:
                     innings["striker"],
                 )
 
+        commentary = self.ball_commentary(
+            bowler_name, batter["name"], delivery["outcome"], delivery["runs"]
+        )
         innings["last_ball"] = (
             f"{BATTING_STYLES[game['batting_style']]['label']} vs "
             f"{BOWLING_STYLES[style]['label']}: {OUTCOME_TEXT[delivery['outcome']]}"
         )
+        innings["commentary"].append({"over": delivery["over"], "text": commentary})
+        del innings["commentary"][:-6]
         innings["last_bowler"] = bowler_name
         if match["balls"] % 6 == 0:
             innings["bowler_index"] = (innings.get("bowler_index", 0) + 1) % len(rotation)
@@ -883,6 +895,22 @@ class TelegramBot:
         else:
             game["phase"] = "bat"
             self.advance_vs_bot_turn(game)
+
+    @staticmethod
+    def ball_commentary(
+        bowler: str, batter: str, outcome: str, runs: int
+    ) -> str:
+        if outcome == "wicket":
+            return f"OUT! {bowler} beats {batter}; the batter is gone."
+        if outcome == "six":
+            return f"SIX! {batter} launches {bowler} over the ropes."
+        if outcome == "four":
+            return f"FOUR! {batter} finds the boundary off {bowler}."
+        if outcome == "dot":
+            return f"{bowler} keeps it tight; {batter} can't score."
+        if runs == 1:
+            return f"{batter} nudges a single off {bowler}."
+        return f"{batter} races back for {runs} runs off {bowler}."
 
     def finish_innings(self, game: dict) -> None:
         innings = game["innings"]
@@ -1004,6 +1032,13 @@ class TelegramBot:
             lines.append(f"🧤 Last wicket: {escape(innings['last_wicket'])}")
         if innings.get("last_ball"):
             lines.append(f"💥 Last ball: {escape(innings['last_ball'])}")
+        commentary = innings.get("commentary", [])
+        if commentary:
+            lines.append("\n<b>🎙 BALL-BY-BALL COMMENTARY</b>")
+            lines.extend(
+                f"<code>{escape(item['over'])}</code> {escape(item['text'])}"
+                for item in commentary
+            )
         lines.append("\n<b>📊 BATTERS</b>  <code>R(B)   4s 6s</code>")
         for index, batter in enumerate(innings["batters"]):
             if (
@@ -1204,6 +1239,10 @@ class TelegramBot:
                     bot.handle_update(update)
                 except (RuntimeError, URLError, KeyError, ValueError) as error:
                     print(f"Could not handle Telegram webhook update: {error}", file=sys.stderr)
+                    if "HTTP 429" in str(error):
+                        self.send_response(200)
+                        self.end_headers()
+                        return
                     self.send_error(500)
                     return
                 self.send_response(200)
