@@ -1,6 +1,10 @@
+import json
 import unittest
 import tempfile
+import threading
 from pathlib import Path
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 from unittest.mock import patch
 
 from src.bot import TelegramBot
@@ -36,6 +40,65 @@ class TelegramBotTests(unittest.TestCase):
             return True
 
         self.bot.api = fake_api
+
+    def test_webhook_server_checks_secret_and_handles_telegram_updates(self):
+        message = {
+            "chat": {"id": 12, "type": "private"},
+            "from": {"id": 12},
+            "text": "/start",
+        }
+        with patch.dict("os.environ", {"PORT": "0"}):
+            server = self.bot.create_webhook_server("expected-secret")
+
+        def request(path, method="GET", secret=None, body=None):
+            result = {}
+
+            def send_request():
+                headers = {}
+                data = None
+                if secret:
+                    headers["X-Telegram-Bot-Api-Secret-Token"] = secret
+                if body is not None:
+                    headers["Content-Type"] = "application/json"
+                    data = json.dumps(body).encode()
+                request = Request(
+                    f"http://127.0.0.1:{server.server_port}{path}",
+                    data=data,
+                    headers=headers,
+                    method=method,
+                )
+                try:
+                    with urlopen(request, timeout=2) as response:
+                        result["status"] = response.status
+                except HTTPError as error:
+                    result["status"] = error.code
+
+            thread = threading.Thread(target=send_request)
+            thread.start()
+            server.handle_request()
+            thread.join(timeout=2)
+            self.assertFalse(thread.is_alive())
+            return result["status"]
+
+        try:
+            self.assertEqual(request("/health"), 200)
+            self.assertEqual(
+                request("/telegram", method="POST", secret="wrong", body={}),
+                403,
+            )
+            with patch.object(self.bot, "handle_message") as handle_message:
+                self.assertEqual(
+                    request(
+                        "/telegram",
+                        method="POST",
+                        secret="expected-secret",
+                        body={"message": message},
+                    ),
+                    200,
+                )
+                handle_message.assert_called_once_with(message)
+        finally:
+            server.server_close()
 
     def callback(self, data, user_id=1, first_name=None, chat_id=-100):
         self.bot.handle_callback(
