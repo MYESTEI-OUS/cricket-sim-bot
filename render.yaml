@@ -1,10 +1,11 @@
 services:
-  - type: worker
+  - type: web
     name: cricket-telegram-bot
     runtime: python
-    plan: 0.5c-512mb
+    plan: free
     buildCommand: python -m unittest discover -s test -v
     startCommand: python -m src.bot
+    healthCheckPath: /health
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false

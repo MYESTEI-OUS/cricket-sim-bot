@@ -28,18 +28,12 @@ A Python Telegram bot for multiplayer and single-player cricket. In group multip
 - The bundled international and IPL franchise player squads are starter lists, not live/current team sheets. Active match state is saved locally in `bot_state.sqlite3` and restored when the bot restarts; keep this file with the bot if moving machines.
 - Use `/cancel` to stop a match (host only), `/help` for a reminder, `/ping` to check that the bot is online, `/members` to display the group member count, and `/refresh` to redraw the active lobby or live match screen.
 
-For 24/7 hosting, run the bot on a stable server or cloud VM, keep the token in a private `.env`, and restart it automatically if needed. The bot itself supports uptime checks and group member lookup for operational monitoring.
+For always-on hosting, run the bot on a stable server or cloud VM, keep the token in a private `.env`, and restart it automatically if needed. The bot itself supports uptime checks and group member lookup for operational monitoring.
 
 The bot needs an internet connection and a valid BotFather token to connect to Telegram.
 
-## Deploy continuously on Render
+## Deploy on Render's free plan
 
-This project includes a Render Blueprint in `render.yaml` for a Python background worker. The worker runs the bot's long-polling process without needing an inbound web server.
+The Render Blueprint in `render.yaml` creates a free Python web service. On Render, the bot switches from long polling to Telegram webhooks and serves `/health` for service checks. Add `TELEGRAM_BOT_TOKEN` as a secret environment variable in Render; never commit `.env` or paste the token into chat.
 
-1. Push this project to a GitHub or GitLab repository. Keep `.env` out of version control; add the bot token only in Render's environment settings.
-2. In Render, choose **New → Blueprint**, connect the repository, and select `render.yaml`.
-3. Enter `TELEGRAM_BOT_TOKEN` when Render prompts for the secret, then review the selected `0.5c-512mb` paid compute plan and current price before approving creation.
-4. Wait for the deployment to finish and check the worker logs for `Cricket Simulator bot is running.`
-5. Stop any copy of the bot still running on a local computer. Telegram long polling supports one active poller per bot token.
-
-Render background workers do not have a free always-on plan. This deployment uses the smallest paid worker plan; charges are controlled by your Render account and begin only if you create the service. Hosting improves availability but cannot guarantee uninterrupted service. Match state is stored in the local SQLite database; persistent disks are required to keep it through Render redeploys.
+Render's free web services can spin down after 15 minutes without inbound traffic and do not include persistent disks. Telegram webhook traffic can wake the service, but startup may delay replies, and match state stored in SQLite may be lost when the service restarts or redeploys. Use a paid background worker or another persistent host for reliable always-on play and saved matches.
