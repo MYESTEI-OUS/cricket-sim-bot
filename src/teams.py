@@ -4,7 +4,7 @@ TEAMS = {
     "india": {
         "name": "India",
         "league": "international",
-        "logo": "🌏",
+        "logo": "🇮🇳",
         "players": [
             "Shreyas Iyer", "Tilak Varma", "Abhishek Sharma", "Vaibhav Sooryavanshi",
 "Ishan Kishan", "Sanju Samson", "Rinku Singh", "Shivam Dube",
