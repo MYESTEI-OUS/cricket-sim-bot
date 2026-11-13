@@ -36,6 +36,25 @@ PITCH_TEXT = {
     "spin": "Turning track",
 }
 
+# Batter milestones (runs -> label)
+BATTER_MILESTONES = {
+    50: "🔥 FIFTY",
+    100: "💯 CENTURY",
+    150: "🚀 150 RUNS",
+    200: "👑 DOUBLE CENTURY",
+}
+# Team total milestones
+TEAM_MILESTONES = (50, 100, 150, 200, 250, 300)
+# Partnership milestones
+PARTNERSHIP_MILESTONES = (50, 100, 150, 200)
+# Bowler wicket-haul milestones (wickets -> label)
+BOWLER_MILESTONES = {
+    3: "🎳 3-WICKET HAUL",
+    5: "🏆 5-WICKET HAUL",
+}
+# Safe limit (Telegram's hard limit is 4096 characters per message)
+SCORECARD_SAFE_LENGTH = 3900
+
 
 def load_dotenv(path: Path = Path(".env")) -> None:
     if not path.is_file():
@@ -276,6 +295,60 @@ class TelegramBot:
             [self.button("🌀 Variation", "bowl:variation"), self.button("🎭 Knuckle ball", "bowl:knuckle")],
         ]
 
+    # ------------------------------------------------------------------
+    # Toss
+    # ------------------------------------------------------------------
+    def toss_call_keyboard(self) -> list:
+        return [[
+            self.button("🪙 Heads", "toss-call:heads"),
+            self.button("🪙 Tails", "toss-call:tails"),
+        ]]
+
+    def toss_choice_keyboard(self) -> list:
+        return [[
+            self.button("🏏 Bat first", "toss-choice:bat"),
+            self.button("🎳 Bowl first", "toss-choice:bowl"),
+        ]]
+
+    def toss_prompt(self, game: dict) -> str:
+        return (
+            f"🪙 TOSS TIME!\n"
+            f"{self.mode_badge(game.get('league'))}\n"
+            f"{game['captain_names']['home']} vs {game['captain_names'].get('away') or 'Opponent'}\n\n"
+            f"{game['captain_names']['home']}, call it in the air:"
+        )
+
+    def toss_summary(self, game: dict) -> str:
+        toss = game.get("toss")
+        if not toss:
+            return ""
+        winner_name = game["captain_names"][toss["winner"]]
+        text = (
+            f"🪙 {game['captain_names']['home']} called {toss['call'].title()}. "
+            f"It's {toss['result'].title()}!\n"
+            f"🏆 {winner_name} won the toss"
+        )
+        if toss.get("decision"):
+            text += f" and chose to {toss['decision']} first."
+        else:
+            text += "."
+        return text
+
+    def apply_toss_decision(self, game: dict, decision: str) -> None:
+        toss = game["toss"]
+        toss["decision"] = decision
+        winner = toss["winner"]
+        loser = "away" if winner == "home" else "home"
+        game["first_batting"] = winner if decision == "bat" else loser
+        game["stage"] = "home_team"
+        self.edit(
+            game,
+            f"{self.toss_summary(game)}\n\n"
+            f"{game['captain_names']['home']}, choose your team "
+            f"({self.league_name(game.get('league'))} mode):",
+            self.team_keyboard("home", game.get("league")),
+        )
+ 
     @staticmethod
     def player_label(user: dict) -> str:
         return user.get("first_name") or user.get("username") or str(user.get("id", "Captain"))
@@ -295,6 +368,14 @@ class TelegramBot:
         if seconds or not parts:
             parts.append(f"{seconds}s")
         return " ".join(parts)
+
+    @staticmethod
+    def ordinal(number: int) -> str:
+        if 10 <= number % 100 <= 20:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(number % 10, "th")
+        return f"{number}{suffix}"
 
     def create_lobby(self, chat: dict, user: dict, league: str | None = None) -> None:
         self.create_match_lobby(chat, user, league, vs_bot=False)
@@ -316,7 +397,7 @@ class TelegramBot:
         selected_league = league if league in ("international", "ipl") else "international"
         game = {
             "chat_id": chat_id,
-            "stage": "home_team",
+            "stage": "join",
             "host": user.get("id"),
             "captains": {"home": user.get("id"), "away": None},
             "captain_names": {
@@ -328,14 +409,21 @@ class TelegramBot:
             "message_id": None,
             "league": selected_league,
             "vs_bot": vs_bot,
+            "toss": None,
+            "first_batting": "home",
         }
         self.sessions[chat_id] = game
+        if vs_bot:
+            # Single player: straight to the toss.
+            game["stage"] = "toss_call"
+            self.edit(game, self.toss_prompt(game), self.toss_call_keyboard())
+            return
         self.edit(
             game,
-            f"🏏 {game['captain_names']['home']} is hosting a "
-            f"{'Vs Bot' if vs_bot else 'multiplayer'} {self.mode_badge(game['league'])} match.\n"
-            "Choose your team:",
-            self.team_keyboard("home", game["league"]),
+            f"🏏 {game['captain_names']['home']} is hosting a multiplayer "
+            f"{self.mode_badge(game['league'])} match.\n"
+            "Another group member should join as away captain:",
+            [[self.button("Join as away captain", "join")]],
         )
 
     def answer_callback(self, callback_id: str, text: str | None = None) -> None:
@@ -380,7 +468,8 @@ class TelegramBot:
                 chat_id,
                 "Cricket Simulator supports multiplayer and single-player Vs Bot. "
                 "In groups, use /newmatch, /playint or /playipl; for solo games, use /vsbot or /vsbotipl. "
-                "Choose teams and XIs, set overs and pitch, then play ball by ball. "
+                "Flow: toss, choose teams, set overs and pitch, pick your XIs, then play ball by ball "
+                "with live milestones and partnerships. "
                 "Use /ping to test uptime, /members to see the group size, and /refresh to redraw the current board. Use /cancel to cancel a lobby or match.",
             )
         elif command == "ping":
@@ -487,12 +576,13 @@ class TelegramBot:
                 return
             game["captains"]["away"] = user_id
             game["captain_names"]["away"] = self.player_label(user)
-            game["stage"] = "away_team"
+            game["stage"] = "toss_call"
             self.answer_callback(callback_id)
             self.edit(
                 game,
-                f"🧢 {game['captain_names']['away']} joined as away captain.\nChoose the away team for {self.mode_badge(game.get('league'))}:",
-                self.team_keyboard("away", game.get("league")),
+                f"🧢 {game['captain_names']['away']} joined as away captain.\n\n"
+                + self.toss_prompt(game),
+                self.toss_call_keyboard(),
             )
             return
 
@@ -504,6 +594,48 @@ class TelegramBot:
             self.answer_callback(callback_id, "This screen is out of date. Use /refresh for the current options.")
             return
 
+        # ---------------- Toss ----------------
+        if data.startswith("toss-call:"):
+            call = data.partition(":")[2]
+            if game["stage"] != "toss_call" or user_id != game["host"]:
+                self.answer_callback(callback_id, "Only the host can call the toss.")
+                return
+            if call not in ("heads", "tails"):
+                self.answer_callback(callback_id, "Call heads or tails.")
+                return
+            result = random.choice(["heads", "tails"])
+            winner = "home" if call == result else "away"
+            game["toss"] = {"call": call, "result": result, "winner": winner, "decision": None}
+            self.answer_callback(callback_id)
+            if game.get("vs_bot") and winner == "away":
+                self.apply_toss_decision(game, random.choice(["bat", "bowl"]))
+                return
+            game["stage"] = "toss_decision"
+            winner_name = game["captain_names"][winner]
+            self.edit(
+                game,
+                f"{self.toss_summary(game)}\n\n{winner_name}, choose to bat or bowl first:",
+                self.toss_choice_keyboard(),
+            )
+            return
+
+        if data.startswith("toss-choice:"):
+            decision = data.partition(":")[2]
+            if game["stage"] != "toss_decision":
+                self.answer_callback(callback_id, "The toss decision is no longer active.")
+                return
+            winner = game["toss"]["winner"]
+            if game["captains"][winner] != user_id:
+                self.answer_callback(callback_id, "Only the toss winner can choose.")
+                return
+            if decision not in ("bat", "bowl"):
+                self.answer_callback(callback_id, "Choose to bat or bowl.")
+                return
+            self.answer_callback(callback_id)
+            self.apply_toss_decision(game, decision)
+            return
+
+        # ---------------- Teams ----------------
         if data.startswith("team:"):
             _, side, team_key = data.split(":", 2)
             expected_stage = f"{side}_team"
@@ -539,31 +671,73 @@ class TelegramBot:
                     game["lineups"]["away"] = sorted(
                         random.sample(range(len(TEAMS[away_team]["players"])), 11)
                     )
-                    game["stage"] = "home_xi"
+                    game["stage"] = "overs"
                     self.edit(
                         game,
-                        f"🤖 Opponent: {self.team_badge(away_team)}.\n"
-                        f"Select 11 players for {self.team_badge(team_key)}:",
-                        self.lineup_keyboard(game, "home"),
+                        f"🏠 Your team: {self.team_badge(team_key)}\n"
+                        f"🤖 Opponent: {self.team_badge(away_team)}\n\n"
+                        "Choose the match length:",
+                        self.overs_keyboard(),
                     )
                     return
-                game["stage"] = "join"
+                game["stage"] = "away_team"
                 self.edit(
                     game,
-                    f"🏠 Home team: {self.team_badge(team_key)} (captain: {game['captain_names']['home']})\n"
-                    "Another group member should join as away captain:",
-                    [[self.button("Join as away captain", "join")]],
+                    f"🏠 Home team: {self.team_badge(team_key)} (captain: {game['captain_names']['home']})\n\n"
+                    f"{game['captain_names']['away']}, choose the away team:",
+                    self.team_keyboard("away", game.get("league")),
                 )
             else:
-                game["stage"] = "home_xi"
+                game["stage"] = "overs"
                 self.edit(
                     game,
-                    f"Away team: {TEAMS[team_key].get('logo', '🏏')} {TEAMS[team_key]['name']}.\n"
-                    f"{game['captain_names']['home']}, select 11 players for {TEAMS[game['teams']['home']].get('logo', '🏏')} {TEAMS[game['teams']['home']]['name']}:",
-                    self.lineup_keyboard(game, "home"),
+                    f"🏠 Home: {self.team_badge(game['teams']['home'])}\n"
+                    f"✈️ Away: {self.team_badge(team_key)}\n\n"
+                    "Both teams are set. Host, choose the match length:",
+                    self.overs_keyboard(),
                 )
             return
 
+        # ---------------- Overs ----------------
+        if data.startswith("overs:"):
+            if game["stage"] != "overs" or user_id != game["host"]:
+                self.answer_callback(callback_id, "Only the host can choose overs at this stage.")
+                return
+            try:
+                game["overs_limit"] = int(data.partition(":")[2])
+                create_match(game["overs_limit"])
+            except ValueError:
+                self.answer_callback(callback_id, "Choose a valid over limit.")
+                return
+            game["stage"] = "pitch"
+            self.answer_callback(callback_id)
+            self.edit(game, "Choose the pitch for this match:", self.pitch_keyboard())
+            return
+
+        # ---------------- Pitch (now BEFORE the XI selection) ----------------
+        if data.startswith("pitch:"):
+            pitch = data.partition(":")[2]
+            if game["stage"] != "pitch" or user_id != game["host"]:
+                self.answer_callback(callback_id, "Only the host can choose the pitch at this stage.")
+                return
+            if pitch not in PITCHES:
+                self.answer_callback(callback_id, "Choose a valid pitch.")
+                return
+            game["pitch"] = pitch
+            game["stage"] = "home_xi"
+            self.answer_callback(callback_id)
+            home_key = game["teams"]["home"]
+            self.edit(
+                game,
+                f"🏟 Pitch: {PITCHES[pitch]['name']} • {game['overs_limit']} overs\n\n"
+                f"{game['captain_names']['home']}, select exactly 11 players for "
+                f"{self.team_badge(home_key)} "
+                f"({len(game['lineups'].get('home', []))}/11 selected):",
+                self.lineup_keyboard(game, "home"),
+            )
+            return
+
+        # ---------------- XI selection ----------------
         if data.startswith("xi:"):
             _, side, raw_index = data.split(":", 2)
             if side not in ("home", "away") or game["stage"] != f"{side}_xi":
@@ -614,47 +788,18 @@ class TelegramBot:
                 return
             game["lineups"][side] = valid_lineup
             self.answer_callback(callback_id)
-            if side == "home":
-                if game.get("vs_bot"):
-                    game["stage"] = "overs"
-                    self.edit(game, "Your XI is set. Choose the match length:", self.overs_keyboard())
-                    return
+            if side == "home" and not game.get("vs_bot"):
                 game["stage"] = "away_xi"
-                next_side = "away"
-                prompt = f"{game['captain_names'][next_side]}, select 11 for {TEAMS[game['teams'][next_side]]['name']}:"
-            else:
-                game["stage"] = "overs"
-                self.edit(game, "Both XIs are set. Host, choose the match length:", self.overs_keyboard())
+                self.edit(
+                    game,
+                    f"{game['captain_names']['away']}, select exactly 11 players for "
+                    f"{self.team_badge(game['teams']['away'])} "
+                    f"({len(game['lineups'].get('away', []))}/11 selected):",
+                    self.lineup_keyboard(game, "away"),
+                )
                 return
-            self.edit(game, prompt, self.lineup_keyboard(game, next_side))
-            return
-
-        if data.startswith("overs:"):
-            if game["stage"] != "overs" or user_id != game["host"]:
-                self.answer_callback(callback_id, "Only the host can choose overs at this stage.")
-                return
-            try:
-                game["overs_limit"] = int(data.partition(":")[2])
-                create_match(game["overs_limit"])
-            except ValueError:
-                self.answer_callback(callback_id, "Choose a valid over limit.")
-                return
-            game["stage"] = "pitch"
-            self.answer_callback(callback_id)
-            self.edit(game, "Choose the pitch for this match:", self.pitch_keyboard())
-            return
-
-        if data.startswith("pitch:"):
-            pitch = data.partition(":")[2]
-            if game["stage"] != "pitch" or user_id != game["host"]:
-                self.answer_callback(callback_id, "Only the host can choose the pitch at this stage.")
-                return
-            if pitch not in PITCHES:
-                self.answer_callback(callback_id, "Choose a valid pitch.")
-                return
-            game["pitch"] = pitch
+            # Vs bot (home confirmed) or away confirmed -> everything is ready.
             game["stage"] = "ready"
-            self.answer_callback(callback_id)
             self.edit(
                 game,
                 self.match_preview(game) + "\nHost, start the match when both captains are ready:",
@@ -668,7 +813,7 @@ class TelegramBot:
                 return
             self.answer_callback(callback_id)
             game["innings_number"] = 1
-            game["batting_side"] = "home"
+            game["batting_side"] = game.get("first_batting", "home")
             game["results"] = []
             self.start_innings(game)
             return
@@ -697,13 +842,22 @@ class TelegramBot:
         home, away = game["teams"]["home"], game["teams"]["away"]
         home_team = TEAMS[home]
         away_team = TEAMS[away]
-        return (
-            f"🏏 {home_team.get('logo', '🏏')} {home_team['name']} vs {away_team['name']} {away_team.get('logo', '🏏')}\n"
-            f"Mode: {'Vs Bot • ' if game.get('vs_bot') else ''}{self.mode_badge(game.get('league'))}\n"
-            f"{len(game['lineups']['home'])} players selected for each side\n"
-            f"Format: {game['overs_limit']} overs per innings\n"
-            f"Pitch: {PITCHES[game['pitch']]['name']}"
-        )
+        lines = [
+            f"🏏 {home_team.get('logo', '🏏')} {home_team['name']} vs {away_team['name']} {away_team.get('logo', '🏏')}",
+            f"Mode: {'Vs Bot • ' if game.get('vs_bot') else ''}{self.mode_badge(game.get('league'))}",
+        ]
+        toss = game.get("toss")
+        if toss and toss.get("decision"):
+            winner_team = TEAMS[game["teams"][toss["winner"]]]["name"]
+            lines.append(f"🪙 Toss: {winner_team} won and chose to {toss['decision']} first")
+        lines.append(f"{len(game['lineups']['home'])} players selected for each side")
+        lines.append(f"Format: {game['overs_limit']} overs per innings")
+        lines.append(f"Pitch: {PITCHES[game['pitch']]['name']}")
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def new_partnership() -> dict:
+        return {"runs": 0, "balls": 0, "contrib": {}}
 
     @staticmethod
     def new_innings(lineup: list[str], overs_limit: int) -> dict:
@@ -721,6 +875,10 @@ class TelegramBot:
             "bowler_index": 0,
             "last_wicket": None,
             "commentary": [],
+            "partnership": {"runs": 0, "balls": 0, "contrib": {}},
+            "partnerships": [],
+            "milestones": [],
+            "milestone_alert": [],
         }
 
     def start_innings(self, game: dict) -> None:
@@ -832,6 +990,14 @@ class TelegramBot:
         current_index = innings.get("bowler_index", 0) % len(rotation)
         bowler_name = rotation[current_index]
 
+        # Make sure older saved matches have the new tracking fields.
+        innings.setdefault("partnership", self.new_partnership())
+        innings["partnership"].setdefault("contrib", {})
+        innings.setdefault("partnerships", [])
+        innings.setdefault("milestones", [])
+
+        score_before = match["score"]
+
         delivery = simulate_ball(
             match,
             game["batting_style"],
@@ -839,7 +1005,11 @@ class TelegramBot:
             PITCHES[game["pitch"]]["modifiers"],
         )
 
+        events: list[str] = []
         batter = innings["batters"][innings["striker"]]
+        non_striker_name = innings["batters"][innings["non_striker"]]["name"]
+        runs_before = batter["runs"]
+
         batter["balls"] += 1
         batter["runs"] += delivery["runs"]
         if delivery["runs"] == 4:
@@ -851,10 +1021,56 @@ class TelegramBot:
         )
         bowler["balls"] += 1
         bowler["runs"] += delivery["runs"]
+
+        # --- Batter milestones: 50 / 100 / 150 / 200 ---
+        for threshold, label in BATTER_MILESTONES.items():
+            if runs_before < threshold <= batter["runs"]:
+                events.append(
+                    f"{label}: {batter['name']} reaches {threshold} off {batter['balls']} balls"
+                )
+
+        # --- Team milestones: 50 / 100 / 150 / 200 ... ---
+        for threshold in TEAM_MILESTONES:
+            if score_before < threshold <= match["score"]:
+                events.append(f"📈 {self.batting_side_name(game)} reach {threshold}")
+
+        # --- Partnership tracking ---
+        partnership = innings["partnership"]
+        partnership_before = partnership["runs"]
+        partnership["runs"] += delivery["runs"]
+        partnership["balls"] += 1
+        contrib = partnership["contrib"]
+        contrib[batter["name"]] = contrib.get(batter["name"], 0) + delivery["runs"]
+        contrib.setdefault(non_striker_name, 0)
+        for threshold in PARTNERSHIP_MILESTONES:
+            if partnership_before < threshold <= partnership["runs"]:
+                events.append(
+                    f"🤝 {threshold}-run partnership: {batter['name']} & {non_striker_name}"
+                )
+
         if delivery["outcome"] == "wicket":
             batter["out"] = True
             bowler["wickets"] += 1
             innings["last_wicket"] = batter["name"]
+
+            # --- Bowler milestones: 3-wicket haul / 5-wicket haul ---
+            if bowler["wickets"] in BOWLER_MILESTONES:
+                events.append(
+                    f"{BOWLER_MILESTONES[bowler['wickets']]}: {bowler_name} "
+                    f"{bowler['wickets']}/{bowler['runs']}"
+                )
+
+            # --- Close the partnership ---
+            innings["partnerships"].append({
+                "wicket": match["wickets"],
+                "runs": partnership["runs"],
+                "balls": partnership["balls"],
+                "pair": [batter["name"], non_striker_name],
+                "contrib": dict(contrib),
+                "unbroken": False,
+            })
+            innings["partnership"] = self.new_partnership()
+
             if innings["next_batter"] < len(innings["batters"]):
                 innings["striker"] = innings["next_batter"]
                 innings["next_batter"] += 1
@@ -884,6 +1100,13 @@ class TelegramBot:
         )
         innings["commentary"].append({"over": delivery["over"], "text": commentary})
         del innings["commentary"][:-6]
+
+        # Milestone alert for this ball + permanent milestone log.
+        innings["milestone_alert"] = events
+        for event in events:
+            innings["milestones"].append({"over": delivery["over"], "text": event})
+        del innings["milestones"][:-40]
+
         innings["last_bowler"] = bowler_name
         if match["balls"] % 6 == 0:
             innings["bowler_index"] = (innings.get("bowler_index", 0) + 1) % len(rotation)
@@ -912,16 +1135,47 @@ class TelegramBot:
             return f"{batter} nudges a single off {bowler}."
         return f"{batter} races back for {runs} runs off {bowler}."
 
+    @staticmethod
+    def match_result_text(game: dict) -> str:
+        first, second = game["results"]
+        if second["score"] > first["score"]:
+            margin = 10 - second["wickets"]
+            return f"{second['team']} win by {margin} wickets!"
+        if second["score"] < first["score"]:
+            return f"{first['team']} win by {first['score'] - second['score']} runs!"
+        return "The match is tied!"
+
     def finish_innings(self, game: dict) -> None:
         innings = game["innings"]
         match = innings["match"]
         side = game["batting_side"]
+
+        # An unbroken partnership at the end of the innings still counts.
+        partnership = innings.get("partnership")
+        if partnership and partnership.get("balls") and match["wickets"] < 10:
+            striker = innings["batters"][innings["striker"]]["name"]
+            non_striker = innings["batters"][innings["non_striker"]]["name"]
+            innings.setdefault("partnerships", []).append({
+                "wicket": match["wickets"] + 1,
+                "runs": partnership["runs"],
+                "balls": partnership["balls"],
+                "pair": [striker, non_striker],
+                "contrib": dict(partnership.get("contrib", {})),
+                "unbroken": True,
+            })
+            innings["partnership"] = self.new_partnership()
+
+        partnerships = innings.get("partnerships", [])
+        best_partnership = max(partnerships, key=lambda p: p["runs"], default=None)
+
         game["results"].append({
             "side": side,
             "team": TEAMS[game["teams"][side]]["name"],
             "score": match["score"],
             "wickets": match["wickets"],
             "balls": match["balls"],
+            "milestones": [item["text"] for item in innings.get("milestones", [])],
+            "best_partnership": best_partnership,
         })
         if game["innings_number"] == 1:
             game["stage"] = "innings_break"
@@ -929,15 +1183,7 @@ class TelegramBot:
             return
 
         game["stage"] = "complete"
-        first, second = game["results"]
-        if second["score"] > first["score"]:
-            margin = 10 - second["wickets"]
-            result = f"{second['team']} win by {margin} wickets!"
-        elif second["score"] < first["score"]:
-            result = f"{first['team']} win by {first['score'] - second['score']} runs!"
-        else:
-            result = "The match is tied!"
-        self.render_scorecard(game, result)
+        self.render_scorecard(game, self.match_result_text(game))
 
     @staticmethod
     def run_rate(runs: int, balls: int) -> float:
@@ -946,6 +1192,26 @@ class TelegramBot:
     @staticmethod
     def batter_strike_rate(batter: dict) -> float:
         return batter["runs"] * 100 / batter["balls"] if batter["balls"] else 0.0
+
+    @staticmethod
+    def batter_badge(runs: int) -> str:
+        if runs >= 200:
+            return " 👑"
+        if runs >= 150:
+            return " 🚀"
+        if runs >= 100:
+            return " 💯"
+        if runs >= 50:
+            return " 🔥"
+        return ""
+
+    @staticmethod
+    def bowler_badge(wickets: int) -> str:
+        if wickets >= 5:
+            return " 🏆5W"
+        if wickets >= 3:
+            return " 🎳3W"
+        return ""
 
     def match_net_run_rates(self, game: dict) -> dict[str, float] | None:
         if len(game.get("results", [])) != 2:
@@ -968,11 +1234,15 @@ class TelegramBot:
             )
         return net_run_rates
 
-    def scorecard_text(self, game: dict, final_result: str | None = None) -> str:
+    def scorecard_text(
+        self,
+        game: dict,
+        final_result: str | None = None,
+        compact: bool = False,
+    ) -> str:
         escape = html.escape
         innings = game["innings"]
         match = innings["match"]
-        side = game["batting_side"]
         team_name = self.batting_side_name(game)
         overs = game["overs_limit"]
         striker = innings["batters"][innings["striker"]]
@@ -1012,19 +1282,43 @@ class TelegramBot:
                 f"<code>({format_overs(result['balls'])}/{overs} overs)</code>"
             )
         lines.append(f"🏟 Pitch: {escape(PITCHES[game['pitch']]['name'])}")
+        toss = game.get("toss")
+        if toss and toss.get("decision") and not compact:
+            winner_team = TEAMS[game["teams"][toss["winner"]]]["name"]
+            lines.append(
+                f"🪙 Toss: {escape(winner_team)} won, chose to {toss['decision']}"
+            )
+
+        # Live milestone banner for the ball just played.
+        if game["stage"] == "live":
+            for alert in innings.get("milestone_alert", []):
+                lines.append(f"🎉 <b>{escape(alert)}</b>")
+
         lines.append(
             f"🏏 <b>Strike:</b> {escape(striker['name'])}* "
-            f"{striker['runs']}({striker['balls']}) | "
+            f"{striker['runs']}({striker['balls']}){self.batter_badge(striker['runs'])} | "
             f"<b>Non-striker:</b> {escape(non_striker['name'])} "
-            f"{non_striker['runs']}({non_striker['balls']})"
+            f"{non_striker['runs']}({non_striker['balls']}){self.batter_badge(non_striker['runs'])}"
         )
         lines.append(
             f"⚡ <b>Batting SR: {self.batter_strike_rate(striker):.2f} | "
             f"Non-striker SR: {self.batter_strike_rate(non_striker):.2f}</b>"
         )
+
+        # Current partnership.
+        partnership = innings.get("partnership") or self.new_partnership()
+        contrib = partnership.get("contrib", {})
+        lines.append(
+            f"🤝 <b>Partnership:</b> <b>{partnership['runs']}</b> runs "
+            f"({partnership['balls']} balls) "
+            f"<code>{escape(striker['name'])} {contrib.get(striker['name'], 0)}"
+            f" • {escape(non_striker['name'])} {contrib.get(non_striker['name'], 0)}</code>"
+        )
+
         lines.append(
             f"🎳 <b>Current bowler:</b> {escape(current_bowler)} "
-            f"<code>{format_overs(bowler_stats['balls'])}-{bowler_stats['runs']}-{bowler_stats['wickets']}</code> "
+            f"<code>{format_overs(bowler_stats['balls'])}-{bowler_stats['runs']}-{bowler_stats['wickets']}</code>"
+            f"{self.bowler_badge(bowler_stats['wickets'])} "
             f"(Econ {self.run_rate(bowler_stats['runs'], bowler_stats['balls']):.2f})"
             f" | <b>Next bowler:</b> {escape(next_bowler)}"
         )
@@ -1033,7 +1327,7 @@ class TelegramBot:
         if innings.get("last_ball"):
             lines.append(f"💥 Last ball: {escape(innings['last_ball'])}")
         commentary = innings.get("commentary", [])
-        if commentary:
+        if commentary and not compact:
             lines.append("\n<b>🎙 BALL-BY-BALL COMMENTARY</b>")
             lines.extend(
                 f"<code>{escape(item['over'])}</code> {escape(item['text'])}"
@@ -1052,7 +1346,7 @@ class TelegramBot:
                 marker = " out"
             lines.append(
                 f"{escape(batter['name'])}{marker}  <b>{batter['runs']}({batter['balls']})</b>"
-                f"   {batter['fours']}  {batter['sixes']}"
+                f"   {batter['fours']}  {batter['sixes']}{self.batter_badge(batter['runs'])}"
             )
         lines.append("\n<b>🎯 BOWLING</b>")
         if innings["bowlers"]:
@@ -1060,14 +1354,54 @@ class TelegramBot:
                 lines.append(
                     f"{escape(name)}: "
                     f"<code>{format_overs(stats['balls'])}-{stats['runs']}-{stats['wickets']}</code>"
+                    f"{self.bowler_badge(stats['wickets'])}"
                 )
         else:
             lines.append("No balls bowled yet.")
+
+        if not final_result and not compact:
+            # Completed partnerships for the live / break view.
+            partnerships = innings.get("partnerships", [])
+            if partnerships:
+                lines.append("\n<b>🤝 PARTNERSHIPS</b>")
+                for item in partnerships[-10:]:
+                    suffix = "*" if item.get("unbroken") else ""
+                    lines.append(
+                        f"{self.ordinal(item['wicket'])} wkt: "
+                        f"{escape(item['pair'][0])} &amp; {escape(item['pair'][1])} "
+                        f"<b>{item['runs']}{suffix}</b>({item['balls']})"
+                    )
+            # Milestone log.
+            milestones = innings.get("milestones", [])
+            if milestones:
+                lines.append("\n<b>🏅 MILESTONES</b>")
+                for item in milestones[-5:]:
+                    lines.append(f"<code>{escape(item['over'])}</code> {escape(item['text'])}")
+
         if game["stage"] == "innings_break":
             lines.append(f"\nInnings complete: {match['score']}/{match['wickets']}.")
             lines.append("The other captain will chase.")
         elif final_result:
             lines.append(f"\n🏁 <b>{escape(final_result)}</b>")
+            if not compact:
+                # Match-wide highlights from both innings.
+                for number, result in enumerate(game.get("results", []), start=1):
+                    highlights = result.get("milestones") or []
+                    best = result.get("best_partnership")
+                    if not highlights and not best:
+                        continue
+                    lines.append(
+                        f"\n<b>🏅 {self.ordinal(number)} INNINGS HIGHLIGHTS</b> "
+                        f"({escape(result['team'])})"
+                    )
+                    if best:
+                        lines.append(
+                            f"🤝 Best partnership: {escape(best['pair'][0])} &amp; "
+                            f"{escape(best['pair'][1])} <b>{best['runs']}</b>({best['balls']})"
+                            f"{'*' if best.get('unbroken') else ''}"
+                        )
+                    for text in highlights[-6:]:
+                        lines.append(escape(text))
             net_run_rates = self.match_net_run_rates(game)
             if net_run_rates is not None:
                 lines.append("\n━━━━━━━━━━━━━━━━━━")
@@ -1113,56 +1447,74 @@ class TelegramBot:
         return self.batting_keyboard() if game["phase"] == "bat" else self.bowling_keyboard()
 
     def render_scorecard(self, game: dict, final_result: str | None = None) -> None:
+        text = self.scorecard_text(game, final_result)
+        if len(text) > SCORECARD_SAFE_LENGTH:
+            # Telegram messages are capped at 4096 characters; fall back to a compact card.
+            text = self.scorecard_text(game, final_result, compact=True)
         self.edit(
             game,
-            self.scorecard_text(game, final_result),
+            text,
             self.live_keyboard(game),
             parse_mode="HTML",
         )
 
     def refresh_game(self, game: dict) -> None:
         stage = game.get("stage")
-        if stage == "home_team":
-            self.edit(
-                game,
-                f"{game['captain_names']['home']} is hosting. Choose the home team ({self.league_name(game['league'])} mode):",
-                self.team_keyboard("home", game.get("league")),
-            )
-            return
         if stage == "join":
             self.edit(
                 game,
-                f"Home team: {TEAMS[game['teams']['home']].get('logo', '🏏')} {TEAMS[game['teams']['home']]['name']} (captain: {game['captain_names']['home']}).\n"
+                f"🏏 {game['captain_names']['home']} is hosting a multiplayer "
+                f"{self.mode_badge(game.get('league'))} match.\n"
                 "Another group member should join as away captain:",
                 [[self.button("Join as away captain", "join")]],
+            )
+            return
+        if stage == "toss_call":
+            self.edit(game, self.toss_prompt(game), self.toss_call_keyboard())
+            return
+        if stage == "toss_decision":
+            winner_name = game["captain_names"][game["toss"]["winner"]]
+            self.edit(
+                game,
+                f"{self.toss_summary(game)}\n\n{winner_name}, choose to bat or bowl first:",
+                self.toss_choice_keyboard(),
+            )
+            return
+        if stage == "home_team":
+            self.edit(
+                game,
+                f"{self.toss_summary(game)}\n\n"
+                f"{game['captain_names']['home']}, choose the home team ({self.league_name(game['league'])} mode):",
+                self.team_keyboard("home", game.get("league")),
             )
             return
         if stage == "away_team":
             self.edit(
                 game,
-                f"{game['captain_names']['away']} joined as away captain. Choose the away team:",
+                f"🏠 Home team: {self.team_badge(game['teams']['home'])}\n\n"
+                f"{game['captain_names']['away']}, choose the away team:",
                 self.team_keyboard("away", game.get("league")),
             )
+            return
+        if stage == "overs":
+            self.edit(game, "Both teams are set. Host, choose the match length:", self.overs_keyboard())
+            return
+        if stage == "pitch":
+            self.edit(game, "Choose the pitch for this match:", self.pitch_keyboard())
             return
         if stage == "home_xi":
             self.edit(
                 game,
-                f"{game['captain_names']['home']}, select exactly 11 players for {TEAMS[game['teams']['home']].get('logo', '🏏')} {TEAMS[game['teams']['home']]['name']} ({len(game['lineups'].get('home', []))}/11 selected):",
+                f"{game['captain_names']['home']}, select exactly 11 players for {self.team_badge(game['teams']['home'])} ({len(game['lineups'].get('home', []))}/11 selected):",
                 self.lineup_keyboard(game, "home"),
             )
             return
         if stage == "away_xi":
             self.edit(
                 game,
-                f"{game['captain_names']['away']}, select exactly 11 players for {TEAMS[game['teams']['away']].get('logo', '🏏')} {TEAMS[game['teams']['away']]['name']} ({len(game['lineups'].get('away', []))}/11 selected):",
+                f"{game['captain_names']['away']}, select exactly 11 players for {self.team_badge(game['teams']['away'])} ({len(game['lineups'].get('away', []))}/11 selected):",
                 self.lineup_keyboard(game, "away"),
             )
-            return
-        if stage == "overs":
-            self.edit(game, "Both XIs are set. Host, choose the match length:", self.overs_keyboard())
-            return
-        if stage == "pitch":
-            self.edit(game, "Choose the pitch for this match:", self.pitch_keyboard())
             return
         if stage == "ready":
             self.edit(
@@ -1172,16 +1524,7 @@ class TelegramBot:
             )
             return
         if stage in ("live", "innings_break", "complete"):
-            final_result = None
-            if stage == "complete":
-                first, second = game["results"]
-                if second["score"] > first["score"]:
-                    margin = 10 - second["wickets"]
-                    final_result = f"{second['team']} win by {margin} wickets!"
-                elif second["score"] < first["score"]:
-                    final_result = f"{first['team']} win by {first['score'] - second['score']} runs!"
-                else:
-                    final_result = "The match is tied!"
+            final_result = self.match_result_text(game) if stage == "complete" else None
             self.render_scorecard(game, final_result)
             return
         self.reply(game["chat_id"], "This screen cannot be refreshed right now.")
