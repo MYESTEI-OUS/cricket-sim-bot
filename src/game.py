@@ -1,4 +1,4 @@
-"""Cricket innings rules and randomized delivery outcomes."""
+"""Cricket innings rules and randomized over-by-over delivery outcomes."""
 
 import random
 
@@ -95,3 +95,63 @@ def simulate_ball(
     if outcome == "wicket":
         match["wickets"] += 1
     return {"outcome": outcome, "runs": RUNS[outcome], "over": format_overs(match["balls"])}
+
+
+def simulate_over(
+    match: dict,
+    batting_style: str,
+    bowling_style: str,
+    pitch_modifiers: dict | None = None,
+    rng=random.random,
+) -> dict:
+    if is_match_over(match):
+        raise ValueError("This innings is already over.")
+
+    over_number = (match["balls"] // 6) + 1
+    balls_to_bowl = 6 - (match["balls"] % 6)
+    deliveries = []
+    over_runs = 0
+    over_wickets = 0
+
+    for _ in range(balls_to_bowl):
+        if is_match_over(match):
+            break
+        result = simulate_ball(match, batting_style, bowling_style, pitch_modifiers, rng)
+        deliveries.append(result)
+        over_runs += result["runs"]
+        if result["outcome"] == "wicket":
+            over_wickets += 1
+
+    return {
+        "over_number": over_number,
+        "deliveries": deliveries,
+        "over_runs": over_runs,
+        "over_wickets": over_wickets,
+        "total_score": match["score"],
+        "total_wickets": match["wickets"],
+        "overs_completed": format_overs(match["balls"]),
+    }
+
+
+# --- Example Over-by-Over Simulation ---
+if __name__ == "__main__":
+    match = create_match(overs_limit=20)
+
+    while not is_match_over(match):
+        current_over = (match["balls"] // 6) + 1
+
+        if current_over <= 6:
+            bat_tactic, bowl_tactic = "aggressive", "aggressive"
+        elif current_over <= 15:
+            bat_tactic, bowl_tactic = "gaps", "variation"
+        else:
+            bat_tactic, bowl_tactic = "ultra", "knuckle"
+
+        over_summary = simulate_over(match, bat_tactic, bowl_tactic)
+        symbols = ["W" if d["outcome"] == "wicket" else str(d["runs"]) for d in over_summary["deliveries"]]
+
+        print(
+            f"Over {over_summary['over_number']:>2}: [{' '.join(symbols):<11}] "
+            f"| Runs: {over_summary['over_runs']:>2}, Wkts: {over_summary['over_wickets']} "
+            f"| Score: {over_summary['total_score']}/{over_summary['total_wickets']}"
+        )
