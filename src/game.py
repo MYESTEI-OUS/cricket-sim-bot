@@ -348,7 +348,7 @@ class TelegramBot:
             f"({self.league_name(game.get('league'))} mode):",
             self.team_keyboard("home", game.get("league")),
         )
-
+ 
     @staticmethod
     def player_label(user: dict) -> str:
         return user.get("first_name") or user.get("username") or str(user.get("id", "Captain"))
