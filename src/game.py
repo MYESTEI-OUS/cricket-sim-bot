@@ -16,7 +16,6 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from .game import BATTING_STYLES, BOWLING_STYLES, create_match, format_overs, is_match_over, simulate_ball
 from .teams import PITCHES, TEAMS
 
 API_BASE = "https://api.telegram.org/bot{token}/{method}"
