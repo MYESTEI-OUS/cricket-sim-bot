@@ -84,7 +84,7 @@ TEAMS = {
     "west_indies": {
         "name": "West Indies",
         "league": "international",
-        "logo": "",
+        "logo": "🌏",
         "players": [
             "Nicholas Pooran", "Shai Hope", "Andre Russell", "Jason Holder",
             "Rovman Powell", "Shimron Hetmyer", "Alzarri Joseph", "Akeal Hosein",
