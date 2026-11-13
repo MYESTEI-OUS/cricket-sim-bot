@@ -4,7 +4,7 @@ TEAMS = {
     "india": {
         "name": "India",
         "league": "international",
-        "logo": "🌍",
+        "logo": "🇮🇳",
         "players": [
             "Shreyas Iyer", "Tilak Varma", "Abhishek Sharma", "Vaibhav Sooryavanshi",
 "Ishan Kishan", "Sanju Samson", "Rinku Singh", "Shivam Dube",
@@ -16,7 +16,7 @@ TEAMS = {
     "australia": {
         "name": "Australia",
         "league": "international",
-        "logo": "🌍",
+        "logo": "🇦🇺",
         "players": [
             "Mitchell Marsh", "Xavier Bartlett", "Mahli Beardman", "Nikhil Chaudhary",
 "Tim David", "Joel Davies", "Jack Edwards", "Nathan Ellis",
@@ -28,7 +28,7 @@ TEAMS = {
     "england": {
         "name": "England",
         "league": "international",
-        "logo": "🌍",
+        "logo": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
         "players": [
             "Harry Brook", "Tom Banton", "James Coles", "Jordan Cox",
 "Henry Crocombe", "Sam Curran", "Liam Dawson", "Aneurin Donald",
@@ -40,7 +40,7 @@ TEAMS = {
     "pakistan": {
         "name": "Pakistan",
         "league": "international",
-        "logo": "🌍",
+        "logo": "🇵🇰",
         "players": [
             "Sahibzada Farhan", "Abdul Samad", "Fakhar Zaman", "Hasan Nawaz",
 "Khawaja Nafay", "Arafat Minhas", "Maaz Sadaqat", "Mohammad Imran",
@@ -51,7 +51,7 @@ TEAMS = {
     "new_zealand": {
         "name": "New Zealand",
         "league": "international",
-        "logo": "🌍",
+        "logo": "🇳🇿",
         "players": [
             "Mitchell Santner", "Finn Allen", "Mark Chapman", "Devon Conway",
 "Jacob Duffy", "Lockie Ferguson", "Matt Henry", "Kyle Jamieson",
@@ -62,7 +62,7 @@ TEAMS = {
     "south_africa": {
         "name": "South Africa",
         "league": "international",
-        "logo": "🌍",
+        "logo": "🇿🇦",
         "players": [
             "Aiden Markram", "Corbin Bosch", "Dewald Brevis", "Quinton de Kock",
 "Marco Jansen", "George Linde", "Keshav Maharaj", "Kwena Maphaka",
@@ -73,7 +73,7 @@ TEAMS = {
     "sri_lanka": {
         "name": "Sri Lanka",
         "league": "international",
-        "logo": "🌍",
+        "logo": "🇱🇰",
         "players": [
             "Kusal Mendis", "Kamil Mishara", "Sineth Jayawardena", "Lahiru Udara",
 "Sahan Arachchige", "Kamindu Mendis", "Dasun Shanaka", "Chamindu Wickramasinghe",
@@ -84,7 +84,7 @@ TEAMS = {
     "west_indies": {
         "name": "West Indies",
         "league": "international",
-        "logo": "🌍",
+        "logo": "",
         "players": [
             "Nicholas Pooran", "Shai Hope", "Andre Russell", "Jason Holder",
             "Rovman Powell", "Shimron Hetmyer", "Alzarri Joseph", "Akeal Hosein",
@@ -95,7 +95,7 @@ TEAMS = {
     "bangladesh": {
         "name": "Bangladesh",
         "league": "international",
-        "logo": "🌍",
+        "logo": "🇧🇩",
         "players": [
             "Litton Das", "Nurul Hasan", "Parvez Hossain Emon", "Tanzid Hasan",
 "Towhid Hridoy", "Mahedi Hasan", "Nasum Ahmed", "Rishad Hossain",
@@ -106,7 +106,7 @@ TEAMS = {
     "afghanistan": {
         "name": "Afghanistan",
         "league": "international",
-        "logo": "🌍",
+        "logo": "🇦🇫",
         "players": [
            "Rashid Khan", "Noor Ahmad", "Abdullah Ahmadzai", "Sediqullah Atal",
 "Fazalhaq Farooqi", "Rahmanullah Gurbaz", "Naveen-ul-Haq", "Mohammad Ishaq",
@@ -117,7 +117,7 @@ TEAMS = {
     "mumbai_indians": {
         "name": "Mumbai Indians",
         "league": "ipl",
-        "logo": "🏆",
+        "logo": "",
         "players": [
             "Rohit Sharma", "Suryakumar Yadav", "Ishan Kishan", "Hardik Pandya",
             "Tilak Varma", "Tim David", "Gerald Coetzee", "Jasprit Bumrah",
