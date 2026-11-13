@@ -6,10 +6,11 @@ TEAMS = {
         "league": "international",
         "logo": "🌍",
         "players": [
-            "Rohit Sharma", "Virat Kohli", "Shubman Gill", "Suryakumar Yadav",
-            "Hardik Pandya", "Ravindra Jadeja", "Rishabh Pant", "KL Rahul",
-            "Jasprit Bumrah", "Kuldeep Yadav", "Mohammed Shami", "Yashasvi Jaiswal",
-            "Shreyas Iyer", "Arshdeep Singh", "Axar Patel",
+            "Shreyas Iyer", "Tilak Varma", "Abhishek Sharma", "Vaibhav Sooryavanshi",
+"Ishan Kishan", "Sanju Samson", "Rinku Singh", "Shivam Dube",
+"Axar Patel", "Washington Sundar", "Nitish Kumar Reddy", "Kuldeep Yadav",
+"Ravi Bishnoi", "Arshdeep Singh", "Prince Yadav", "Mayank Yadav",
+
         ],
     },
     "australia": {
@@ -17,10 +18,11 @@ TEAMS = {
         "league": "international",
         "logo": "🌍",
         "players": [
-            "Pat Cummins", "Steve Smith", "Travis Head", "Mitchell Starc",
-            "Glenn Maxwell", "David Warner", "Josh Hazlewood", "Marnus Labuschagne",
-            "Alex Carey", "Mitchell Marsh", "Adam Zampa", "Cameron Green",
-            "Marcus Stoinis", "Nathan Lyon", "Usman Khawaja",
+            "Mitchell Marsh", "Xavier Bartlett", "Mahli Beardman", "Nikhil Chaudhary",
+"Tim David", "Joel Davies", "Jack Edwards", "Nathan Ellis",
+"Jake Fraser-McGurk", "Sam Harper", "Spencer Johnson", "Mitchell Owen",
+"Lachlan Shaw", "Adam Zampa",
+
         ],
     },
     "england": {
@@ -28,10 +30,11 @@ TEAMS = {
         "league": "international",
         "logo": "🌍",
         "players": [
-            "Jos Buttler", "Joe Root", "Ben Stokes", "Jofra Archer",
-            "Harry Brook", "Jonny Bairstow", "Mark Wood", "Adil Rashid",
-            "Ollie Pope", "Liam Livingstone", "Reece Topley", "Moeen Ali",
-            "Dawid Malan", "Sam Curran", "Chris Woakes",
+            "Harry Brook", "Tom Banton", "James Coles", "Jordan Cox",
+"Henry Crocombe", "Sam Curran", "Liam Dawson", "Aneurin Donald",
+"Eddie Jack", "Will Jacks", "Jamie Overton", "Adil Rashid",
+"Thomas Rew", "Phil Salt", "Luke Wood",
+
         ],
     },
     "pakistan": {
@@ -39,10 +42,10 @@ TEAMS = {
         "league": "international",
         "logo": "🌍",
         "players": [
-            "Babar Azam", "Shaheen Afridi", "Mohammad Rizwan", "Fakhar Zaman",
-            "Naseem Shah", "Haris Rauf", "Shadab Khan", "Imam-ul-Haq",
-            "Mohammad Nawaz", "Iftikhar Ahmed", "Abdullah Shafique", "Hasan Ali",
-            "Saim Ayub", "Usama Mir", "Agha Salman",
+            "Sahibzada Farhan", "Abdul Samad", "Fakhar Zaman", "Hasan Nawaz",
+"Khawaja Nafay", "Arafat Minhas", "Maaz Sadaqat", "Mohammad Imran",
+"Saim Ayub", "Shadab Khan", "Abrar Ahmed", "Naseem Shah",
+"Razaullah", "Salman Mirza", "Sufyan Moqim",
         ],
     },
     "new_zealand": {
@@ -50,10 +53,10 @@ TEAMS = {
         "league": "international",
         "logo": "🌍",
         "players": [
-            "Kane Williamson", "Trent Boult", "Mitchell Santner", "Devon Conway",
-            "Rachin Ravindra", "Daryl Mitchell", "Glenn Phillips", "Tim Southee",
-            "Lockie Ferguson", "Tom Latham", "Matt Henry", "Mark Chapman",
-            "Ish Sodhi", "Finn Allen", "James Neesham",
+            "Mitchell Santner", "Finn Allen", "Mark Chapman", "Devon Conway",
+"Jacob Duffy", "Lockie Ferguson", "Matt Henry", "Kyle Jamieson",
+"Cole McConchie", "Daryl Mitchell", "James Neesham", "Glenn Phillips",
+"Rachin Ravindra", "Tim Seifert", "Ish Sodhi",
         ],
     },
     "south_africa": {
@@ -61,10 +64,10 @@ TEAMS = {
         "league": "international",
         "logo": "🌍",
         "players": [
-            "Quinton de Kock", "Kagiso Rabada", "Heinrich Klaasen", "Aiden Markram",
-            "David Miller", "Anrich Nortje", "Marco Jansen", "Keshav Maharaj",
-            "Tabraiz Shamsi", "Rassie van der Dussen", "Lungi Ngidi", "Reeza Hendricks",
-            "Tristan Stubbs", "Gerald Coetzee", "Temba Bavuma",
+            "Aiden Markram", "Corbin Bosch", "Dewald Brevis", "Quinton de Kock",
+"Marco Jansen", "George Linde", "Keshav Maharaj", "Kwena Maphaka",
+"David Miller", "Lungi Ngidi", "Anrich Nortje", "Kagiso Rabada",
+"Ryan Rickelton", "Jason Smith", "Tristan Stubbs",
         ],
     },
     "sri_lanka": {
@@ -72,10 +75,10 @@ TEAMS = {
         "league": "international",
         "logo": "🌍",
         "players": [
-            "Wanindu Hasaranga", "Kusal Mendis", "Pathum Nissanka", "Angelo Mathews",
-            "Charith Asalanka", "Maheesh Theekshana", "Dilshan Madushanka", "Dhananjaya de Silva",
-            "Dasun Shanaka", "Dushmantha Chameera", "Kusal Perera", "Kamindu Mendis",
-            "Lahiru Kumara", "Sadeera Samarawickrama", "Dunith Wellalage",
+            "Kusal Mendis", "Kamil Mishara", "Sineth Jayawardena", "Lahiru Udara",
+"Sahan Arachchige", "Kamindu Mendis", "Dasun Shanaka", "Chamindu Wickramasinghe",
+"Dushmantha Chameera", "Binura Fernando", "Eshan Malinga", "Maheesh Theekshana",
+"Nuwan Thushara", "Vijayakanth Viyaskanth", "Dunith Wellalage",
         ],
     },
     "west_indies": {
@@ -94,10 +97,10 @@ TEAMS = {
         "league": "international",
         "logo": "🌍",
         "players": [
-            "Shakib Al Hasan", "Mushfiqur Rahim", "Litton Das", "Tamim Iqbal",
-            "Mustafizur Rahman", "Taskin Ahmed", "Mehidy Hasan", "Mahmudullah",
-            "Najmul Hossain Shanto", "Towhid Hridoy", "Soumya Sarkar", "Tanzim Hasan Sakib",
-            "Shoriful Islam", "Rishad Hossain", "Jaker Ali",
+            "Litton Das", "Nurul Hasan", "Parvez Hossain Emon", "Tanzid Hasan",
+"Towhid Hridoy", "Mahedi Hasan", "Nasum Ahmed", "Rishad Hossain",
+"Saif Hassan", "Shamim Hossain", "Abdul Gaffar Saqlain", "Mustafizur Rahman",
+"Nahid Rana", "Shoriful Islam", "Taskin Ahmed",
         ],
     },
     "afghanistan": {
@@ -105,10 +108,10 @@ TEAMS = {
         "league": "international",
         "logo": "🌍",
         "players": [
-            "Rashid Khan", "Rahmanullah Gurbaz", "Mohammad Nabi", "Ibrahim Zadran",
-            "Mujeeb Ur Rahman", "Azmatullah Omarzai", "Fazalhaq Farooqi", "Najibullah Zadran",
-            "Gulbadin Naib", "Noor Ahmad", "Naveen-ul-Haq", "Hashmatullah Shahidi",
-            "Ikram Alikhil", "Mohammad Ishaq", "Karim Janat",
+           "Rashid Khan", "Noor Ahmad", "Abdullah Ahmadzai", "Sediqullah Atal",
+"Fazalhaq Farooqi", "Rahmanullah Gurbaz", "Naveen-ul-Haq", "Mohammad Ishaq",
+"Shahidullah Kamal", "Mohammad Nabi", "Gulbadin Naib", "Azmatullah Omarzai",
+"Mujeeb Ur Rahman", "Darwish Rasooli", "Ibrahim Zadran",
         ],
     },
     "mumbai_indians": {
